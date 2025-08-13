@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+<meta charset="UTF-8">
+<title>Calculadora BJT</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<style>
+    body { font-family: Arial, sans-serif; max-width: 800px; margin: auto; }
+    input { margin: 5px; }
+    button { margin: 5px; padding: 5px 10px; }
+</style>
+</head>
+<body>
+<h1>Calculadora de Transistor BJT</h1>
+
+<form id="form">
+    <label>VBB: <input type="number" step="0.01" name="Vbb" required></label>
+    <label>RC (Ω): <input type="number" step="0.01" name="RC" required></label>
+    <label>RB (Ω): <input type="number" step="0.01" name="RB" required></label>
+    <label>VCC: <input type="number" step="0.01" name="Vcc" required></label>
+    <label>Beta: <input type="number" step="0.01" name="Beta" required></label>
+    <button type="submit">Calcular</button>
+</form>
+
+<h2>Resultados</h2>
+<pre id="resultado"></pre>
+
+<canvas id="grafico" width="600" height="400"></canvas>
+
+<script>
+const API_BASE = "https://calculadora-de-transistor-bjt.onrender.com";
+let chart = null;
+
+document.getElementById("form").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const dados = Object.fromEntries(new FormData(e.target));
+    for (let k in dados) dados[k] = parseFloat(dados[k]);
+
+    const res = await fetch(`${API_BASE}/calcular`, {
+        method: "POST",
+        headers: {"Content-Type": "application/json"},
+        body: JSON.stringify(dados)
+    });
+
+    const json = await res.json();
+    document.getElementById("resultado").textContent = `
+IC: ${json.IC.toExponential(3)} A
+IB: ${json.IB.toExponential(3)} A
+VCE: ${json.VCE.toFixed(3)} V
+Potência: ${json.Potencia.toFixed(3)} W
+Região: ${json.regiao}
+IC máx: ${json.IC_max.toExponential(3)} A
+    `;
+
+    const ctx = document.getElementById("grafico").getContext("2d");
+    if (chart) chart.destroy();
+
+    chart = new Chart(ctx, {
+        type: "line",
+        data: {
+            labels: json.load_line_vce.map(v => v.toFixed(2)),
+            datasets: [
+                {
+                    label: "Reta de carga",
+                    data: json.load_line_ic,
+                    borderColor: "blue",
+                    fill: false,
+                    tension: 0.1
+                },
+                {
+                    label: "Ponto Q",
+                    data: json.load_line_vce.map((v,i) => i===Math.floor(json.load_line_vce.length/2) ? json.IC : null),
+                    borderColor: "red",
+                    pointBackgroundColor: "red",
+                    pointRadius: 8,
+                    fill: false,
+                    showLine: false
+                },
+                {
+                    label: "IC máx",
+                    data: json.load_line_vce.map(v => json.IC_max),
+                    borderColor: "green",
+                    borderDash: [5,5],
+                    fill: false,
+                    tension: 0
+                }
+            ]
+        },
+        options: {
+            responsive: true,
+            plugins: {
+                title: {
+                    display: true,
+                    text: 'Curva IC x VCE do Transistor'
+                },
+                legend: { display: true }
+            },
+            scales: {
+                x: { title: { display: true, text: 'VCE (V)' } },
+                y: { title: { display: true, text: 'IC (A)' } }
+            }
+        }
+    });
+});
+</script>
+</body>
+</html>
